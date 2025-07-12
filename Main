@@ -1,0 +1,87 @@
+# Dr Mahdi Saadati (@Mazums_AI) ai.mazums.ac.ir
+
+import speech_recognition as sr
+from googletrans import Translator
+from gtts import gTTS
+import os
+import time
+from playsound import playsound
+
+# ۱. تنظیمات اولیه
+LANG_PERSIAN = "fa-IR"
+LANG_ENGLISH = "en-US"
+
+# ساخت یک نمونه از کلاس‌های لازم
+recognizer = sr.Recognizer()
+translator = Translator()
+
+def speak(text, lang):
+    """متن ورودی را به زبان مشخص شده به گفتار تبدیل و پخش می‌کند"""
+    try:
+        tts = gTTS(text=text, lang=lang)
+        # فایل صوتی را با یک نام موقت و منحصر به فرد ذخیره می‌کنیم
+        filename = f"temp_audio_{int(time.time())}.mp3"
+        tts.save(filename)
+        print(f"پخش صدا: {text}")
+        playsound(filename)
+        os.remove(filename) # حذف فایل موقت پس از پخش
+    except Exception as e:
+        print(f"خطا در پخش صدا: {e}")
+
+# ۲. حلقه اصلی برنامه
+print("مترجم صوتی فعال شد. لطفاً به انگلیسی یا فارسی صحبت کنید...")
+print("برای خروج، برنامه را با Ctrl+C ببندید.")
+
+while True:
+    with sr.Microphone() as source:
+        try:
+            # کالیبره کردن با نویز محیط برای تشخیص بهتر
+            recognizer.adjust_for_ambient_noise(source, duration=0.5)
+            print("\nدر حال گوش دادن...")
+            
+            # گوش دادن به صدای ورودی از میکروفون
+            audio = recognizer.listen(source, timeout=5, phrase_time_limit=10)
+            
+            recognized_text = ""
+            detected_lang = ""
+
+            # ۳. تلاش برای تشخیص زبان فارسی
+            try:
+                # ابتدا سعی می‌کنیم گفتار را به عنوان فارسی تشخیص دهیم
+                recognized_text = recognizer.recognize_google(audio, language=LANG_PERSIAN)
+                detected_lang = 'fa'
+                print(f"شما (فارسی) گفتید: {recognized_text}")
+                
+            except sr.UnknownValueError:
+                # اگر فارسی نبود، سعی می‌کنیم آن را به عنوان انگلیسی تشخیص دهیم
+                try:
+                    recognized_text = recognizer.recognize_google(audio, language=LANG_ENGLISH)
+                    detected_lang = 'en'
+                    print(f"You (English) said: {recognized_text}")
+                except sr.UnknownValueError:
+                    print("صدا نامفهوم بود یا زبانی غیر از فارسی و انگلیسی صحبت کردید.")
+                    continue # برو به ابتدای حلقه و دوباره گوش بده
+            
+            # ۴. ترجمه و پخش صدا
+            if detected_lang == 'fa':
+                # ترجمه از فارسی به انگلیسی
+                translation = translator.translate(recognized_text, src='fa', dest='en')
+                print(f"ترجمه (انگلیسی): {translation.text}")
+                speak(translation.text, 'en')
+
+            elif detected_lang == 'en':
+                # ترجمه از انگلیسی به فارسی
+                translation = translator.translate(recognized_text, src='en', dest='fa')
+                print(f"ترجمه (فارسی): {translation.text}")
+                speak(translation.text, 'fa')
+
+        except sr.WaitTimeoutError:
+            # اگر در مدت زمان مشخص شده صدایی نشنود
+            print("صدایی دریافت نشد، دوباره تلاش می‌شود.")
+        except sr.RequestError as e:
+            # خطاهای مربوط به اتصال به اینترنت یا سرویس گوگل
+            print(f"خطا در اتصال به سرویس گوگل؛ لطفاً اتصال اینترنت خود را بررسی کنید: {e}")
+        except Exception as e:
+            # سایر خطاهای پیش‌بینی نشده
+            print(f"یک خطای غیرمنتظره رخ داد: {e}")
+            break # در صورت خطای جدی، از حلقه خارج شو
